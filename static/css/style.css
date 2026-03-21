@@ -48,6 +48,28 @@ a:hover {
     background: var(--color-bg-alt);
 }
 
+/* "About" section gets a tiled pattern of small "Ü" letters as background */
+#about {
+    position: relative;
+    overflow: hidden;
+}
+
+#about::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='60' height='60'%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' font-family='Manrope%2C sans-serif' font-size='28' font-weight='700' fill='%237C5CBF' opacity='0.08' transform='rotate(-15 30 30)'%3EÜ%3C/text%3E%3C/svg%3E");
+    background-repeat: repeat;
+    background-size: 60px 60px;
+    pointer-events: none;
+    z-index: 0;
+}
+
+#about .container {
+    position: relative;
+    z-index: 1;
+}
+
 .container {
     max-width: 1120px;
     margin: 0 auto;
@@ -87,11 +109,32 @@ a:hover {
     align-items: center;
     text-align: center;
     background: linear-gradient(180deg, #FFFFFF 0%, var(--color-bg) 100%);
+    overflow: hidden;
+    position: relative;
+}
+
+/* Decorative large "Ü" letter rotated in the background */
+#hero::before {
+    content: "Ü";
+    position: absolute;
+    font-size: 60vw;
+    font-weight: 700;
+    color: var(--color-primary);
+    opacity: 0.04;
+    line-height: 1;
+    right: -10vw;
+    bottom: -10vw;
+    transform: rotate(-20deg);
+    pointer-events: none;
+    user-select: none;
+    z-index: 0;
 }
 
 .hero-content {
     max-width: 880px;
     margin: 0 auto;
+    position: relative;
+    z-index: 1; /* Keep content above the decorative background letter */
 }
 
 .wordmark {
