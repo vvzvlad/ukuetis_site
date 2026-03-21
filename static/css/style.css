@@ -214,14 +214,27 @@ a:hover {
     border: 1px solid var(--color-primary);
     border-radius: 16px;
     padding: 24px;
+    position: relative; /* Needed for absolute badge positioning */
+}
+
+/* Badge is flush with the top-right corner of the card; no space around it */
+.product-card .badge {
+    position: absolute;
+    top: 0;
+    right: 0;
+    border-radius: 0 16px 0 8px; /* Matches the card's top-right border-radius */
+}
+
+/* Cards with a badge get top padding equal to badge height so title starts below it */
+.product-card:has(.badge) {
+    padding-top: 2.2rem;
 }
 
 .product-head {
     display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 0.8rem;
+    align-items: flex-start;
     margin-bottom: 0.8rem;
+    /* Badge is absolute, so no padding-right needed; title uses full card width */
 }
 
 .product-card h3 {
@@ -377,8 +390,4 @@ footer {
         grid-template-columns: 1fr;
     }
 
-    .product-head {
-        flex-direction: column;
-        align-items: flex-start;
-    }
 }
