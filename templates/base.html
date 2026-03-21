@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@300;400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/static/css/style.css">
+    <title>{% block title %}Ukuetis{% endblock %}</title>
+    {% block head_extra %}{% endblock %}
+</head>
+<body>
+{% block body_start %}{% endblock %}
+{% block content %}{% endblock %}
+    <footer>
+        <div class="footer-content">
+            <h3>Ukuetis</h3>
+            <p>© 2026 Ukuetis</p>
+            <p>Электронные устройства для керамических печей</p>
+        </div>
+    </footer>
+{% block scripts %}{% endblock %}
+</body>
+</html>
