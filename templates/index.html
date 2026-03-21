@@ -19,8 +19,6 @@
             <nav class="main-nav" aria-label="Навигация по разделам">
                 <a href="#about" class="nav-link">О компании</a>
                 <a href="#products" class="nav-link">Продукты</a>
-                <a href="#features" class="nav-link">Возможности</a>
-                <a href="#contact" class="nav-link">Контакты</a>
             </nav>
             <button class="scroll-down" type="button" aria-label="Прокрутить к следующему разделу">
                 <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
@@ -54,8 +52,7 @@
         <div class="products-grid">
             <article class="product-card">
                 <div class="product-head">
-                    <h3>Uküetis Logger</h3>
-                    <span class="badge badge-primary">В разработке</span>
+                    <h3>Uküetis Logger</h3><!-- Product name: Logger -->
                 </div>
                 <p>
                     Дата-логгер температуры для керамических печей. Записывает реальную температурную кривую
@@ -66,15 +63,28 @@
                     эффективность или камера перегружена и не успевает нагреваться по графику.
                 </p>
                 <div class="product-links">
-                    <a href="https://docs.ukuetis.com/share/v267140g6o/p/logger-4Zjhl8Fkxy" target="_blank" rel="noopener noreferrer" class="product-doc-link">Документация: Logger</a>
-                    <a href="https://docs.ukuetis.com/share/rvi69g8wbi/p/logger-dlya-raku-qKELnWrv3n" target="_blank" rel="noopener noreferrer" class="product-doc-link">Документация: Logger для раку</a>
+                    <a href="https://docs.ukuetis.com/share/v267140g6o/p/logger-4Zjhl8Fkxy" target="_blank" rel="noopener noreferrer" class="product-doc-link">Logger</a>
+                </div>
+            </article>
+
+            <article class="product-card">
+                <div class="product-head">
+                    <h3>Uküetis Logger для раку</h3>
+                    <span class="badge badge-primary">В разработке</span>
+                </div>
+                <p>
+                    Версия логгера для раку и дровяных обжигов. Работает в условиях быстрого нагрева
+                    и резких перепадов температуры.
+                </p>
+                <div class="product-links">
+                    <a href="https://docs.ukuetis.com/share/rvi69g8wbi/p/logger-dlya-raku-qKELnWrv3n" target="_blank" rel="noopener noreferrer" class="product-doc-link">Logger для раку</a>
                 </div>
             </article>
 
             <article class="product-card">
                 <div class="product-head">
                     <h3>Uküetis Controller</h3>
-                    <span class="badge badge-warn">Ограниченная доступность</span>
+                    <span class="badge badge-primary">В разработке</span>
                 </div>
                 <p>
                     Умный контроллер печи с сенсорным экраном. Позволяет редактировать графики обжига прямо
@@ -85,37 +95,13 @@
                     Asakusa Lab и используется в реальных обжигах.
                 </p>
                 <div class="product-links">
-                    <a href="https://docs.ukuetis.com/share/xpretkl3wh/p/kontroller-WLnRCISxQT" target="_blank" rel="noopener noreferrer" class="product-doc-link">Документация: Controller</a>
+                    <a href="https://docs.ukuetis.com/share/xpretkl3wh/p/kontroller-WLnRCISxQT" target="_blank" rel="noopener noreferrer" class="product-doc-link">Controller</a>
                 </div>
             </article>
         </div>
     </div>
 </section>
 
-<section id="features" class="screen">
-    <div class="container">
-        <h2 class="section-title">Ключевые возможности</h2>
-        <div class="features-grid">
-            <article class="feature-card">Сенсорный интерфейс управления</article>
-            <article class="feature-card">Веб-панель для удаленной работы</article>
-            <article class="feature-card">Логирование температуры в реальном времени</article>
-            <article class="feature-card">Редактор графиков обжига</article>
-            <article class="feature-card">Анализ кривых и диагностика печи</article>
-            <article class="feature-card">Совместимость с любыми печами</article>
-        </div>
-    </div>
-</section>
-
-<section id="contact" class="screen">
-    <div class="container">
-        <h2 class="section-title">Контакты</h2>
-        <div class="section-content narrow contact-content">
-            <p>Для сотрудничества и вопросов пишите:</p>
-            <p><a href="mailto:mail@ukuetis.com">mail@ukuetis.com</a></p>
-            <p><a href="https://t.me/ukuetis" target="_blank" rel="noopener noreferrer">Telegram: @ukuetis</a></p>
-        </div>
-    </div>
-</section>
 {% endblock %}
 
 {% block scripts %}
