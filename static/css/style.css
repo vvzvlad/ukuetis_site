@@ -225,11 +225,6 @@ a:hover {
     border-radius: 0 16px 0 8px; /* Matches the card's top-right border-radius */
 }
 
-/* Cards with a badge get top padding equal to badge height so title starts below it */
-.product-card:has(.badge) {
-    padding-top: 2.2rem;
-}
-
 .product-head {
     display: flex;
     align-items: flex-start;
