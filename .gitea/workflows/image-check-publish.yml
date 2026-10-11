@@ -2,9 +2,7 @@ name: Docker Image CI
 
 # No `pull_request` trigger here on purpose. This workflow pushes :latest, and
 # watchtower on slug polls the registry every two minutes — a build off any PR
-# branch would ship straight to ukuetis.com. That is exactly what the old GitHub
-# workflow did: it triggered on pull_request and pushed :latest unconditionally.
-# PRs are covered by tests.yml, which builds and smoke-tests but never logs in
+# branch would ship straight to ukuetis.com. PRs are covered by tests.yml, which builds and smoke-tests but never logs in
 # and never pushes.
 on:
   workflow_dispatch:
@@ -18,14 +16,9 @@ on:
 permissions:
   contents: read   # checkout
 
-# Two pushes to the same branch in a row must not race: the runs are independent
-# and the older one may finish last, leaving its :latest on the registry — a
-# watchtower deploy would then ship the previous commit to prod.
-# The group alone already fixes that: runs are serialised, so the newest commit's
-# :latest is written last. Cancelling is deliberately OFF — it would kill the
-# older run together with its :<sha> image, and on two quick pushes the
-# intermediate commit would never be built, leaving holes in the tag history
-# exactly where a rollback is most likely to be needed.
+# Runs are serialised so the newest commit's :latest is written last. Cancelling
+# stays off: it would drop the older run's :<sha> image and leave a hole in the
+# rollback tag history.
 concurrency:
   group: image-${{ github.ref }}
   cancel-in-progress: false
@@ -33,27 +26,18 @@ concurrency:
 jobs:
   build:
     runs-on: ubuntu-latest
-    # cirunner-hatbox is shared by every repository in the fleet, so a hung step
-    # does not just stall this run — it holds a runner slot that everyone else is
-    # queueing for. Gitea's own default is far too generous for that. The readiness
-    # poll below is bounded at 30 ATTEMPTS, not 30 seconds: ~35-45s when the port is
-    # refused outright, but up to ~2 minutes when something accepts the connection
-    # and then never answers; `docker build` and `docker exec` have no bound at all.
+    # cirunner-hatbox is shared by every repository, so a hung step holds a runner
+    # slot others queue for. The readiness poll below is bounded at 30 attempts (up
+    # to ~2 minutes); `docker build` and `docker exec` have no bound of their own.
     timeout-minutes: 20
     steps:
     - uses: actions/checkout@v7
 
     - name: Compute image tags
       id: tags
-      # main -> :latest + :<sha> (watchtower deploys :latest); ANY other branch -> :<branch>.
-      # The check is against `main` because that is this repo's default branch — a
-      # repo living on `master` with a `main` check here would build happily and
-      # never once produce the :latest that production actually pulls.
-      # Only main is pushed to by the trigger above, but workflow_dispatch can be fired
-      # off any ref, so the else branch still has to be correct.
-      # Do NOT hardcode a fixed tag in the else branch: a build off a side branch would
-      # then silently overwrite the tag production deploys from — one typo away from
-      # shipping unreviewed code.
+      # main (this repo's default branch) -> :latest + :<sha> (watchtower deploys
+      # :latest); any other branch -> :<branch>. workflow_dispatch can be fired off
+      # any ref, so the else branch must never produce a tag production deploys from.
       env:
         # Passed through the environment instead of being interpolated into the
         # script text: git allows `$`, backticks, quotes and parentheses in branch
@@ -81,14 +65,9 @@ jobs:
           # ran before, :<sha> can only ever mean this commit's image.
           echo "smoke=$IMAGE:$SHA" >> "$GITHUB_OUTPUT"
         else
-          # Sanitise the branch name into a legal docker tag: everything outside
-          # [A-Za-z0-9_.-] (a `/` in feat/foo above all) becomes `-`, and the result
-          # is cut to 100 chars — branch names have no length limit, docker rejects
-          # tags over 128.
-          # The `sed` fixes the first character: docker requires a tag to match
-          # [a-zA-Z0-9_][a-zA-Z0-9._-]{0,127}, so a branch like `-fix`, `(test)`
-          # or `+wip` would otherwise produce a leading `-` and fail the build
-          # with `invalid reference format`.
+          # Sanitise the branch name into a legal docker tag
+          # ([a-zA-Z0-9_][a-zA-Z0-9._-]{0,127}): illegal characters become `-`, a
+          # leading non-[A-Za-z0-9_] becomes `_`, and the result is cut to 100 chars.
           branch_tag=$(printf '%s' "$REF_NAME" | tr -c 'A-Za-z0-9_.-' '-' | sed 's/^[^A-Za-z0-9_]/_/' | cut -c1-100)
           # The sanitiser passes a name through untouched when it already consists
           # of legal characters, so a branch literally named `latest` would come
@@ -119,36 +98,26 @@ jobs:
       run: |
         tag_args=""
         for tag in $TAGS; do tag_args="$tag_args --tag $tag"; done
-        # --pull is required here: unlike GitHub's ephemeral runners, cirunner-hatbox
-        # is self-hosted with a persistent docker daemon, so without the flag the once
-        # pulled python:3.11-slim would sit in its cache for months and every build
-        # would inherit an unpatched base layer.
-        # Note that this IS a BuildKit build even though no `docker buildx` appears
-        # on the line: BuildKit has been `docker build`'s default since Engine 23.0.
-        # It caches into its own builder store, which is why the cleanup step at the
-        # end of this job cannot reclaim everything — see the caveat there.
+        # --pull is required: cirunner-hatbox has a persistent docker daemon, so a
+        # once-pulled python:3.11-slim would otherwise sit in its cache for months.
+        # This is a BuildKit build (the default since Engine 23.0), so its cache is
+        # not reclaimed by the cleanup step at the end of this job.
         docker build --pull . --file Dockerfile $tag_args
 
     - name: Smoke-test the built image
-      # There are no unit tests in this repo, so this is the only gate before
-      # :latest goes live — watchtower on slug picks it up within two minutes.
-      # It sits BETWEEN build and push on purpose: a red smoke means nothing
-      # ever reaches the registry, so prod keeps serving the previous image.
+      # The only gate before :latest goes live (watchtower on slug picks it up
+      # within two minutes). It sits between build and push, so a red smoke means
+      # nothing reaches the registry.
       #
-      # The container is started with the image's OWN command — no `--entrypoint`,
-      # which does not merely replace the entrypoint but also DROPS the image's
-      # CMD. This image has no ENTRYPOINT at all, only `CMD ["python", "app.py"]`,
-      # so passing one would leave "does the container even start" untested: a
-      # broken `__main__` block, a bad WORKDIR or a typo in CMD would ship green.
+      # The container runs the image's own CMD (no `--entrypoint`, which would drop
+      # CMD), so the check proves the container actually starts.
       #
-      # Nothing is published to the host: the checks run from inside the container
-      # via `docker exec`, so parallel runs on this shared daemon cannot collide on
-      # a host port. The container name carries the run id for the same reason.
+      # Nothing is published to the host: checks run via `docker exec`, so parallel
+      # runs on the shared daemon cannot collide on a port. The container name
+      # carries the run id for the same reason.
       #
-      # Step-level `timeout-minutes`, the one act_runner is known to enforce (the
-      # job-level one is only the outer bound). 5 minutes comfortably covers
-      # `docker run`, the readiness loop's ~2-minute worst case and the smoke script
-      # itself.
+      # 5 minutes covers `docker run`, the readiness loop's ~2-minute worst case and
+      # the smoke script.
       timeout-minutes: 5
       env:
         SMOKE_TAG: ${{ steps.tags.outputs.smoke }}
@@ -161,23 +130,13 @@ jobs:
         # Port 8000 is what app.py falls back to when PORT is unset, and nothing
         # here sets it.
         #
-        # Ready means "the server produced an HTTP response of ANY kind" — judging
-        # that response is ci/smoke.py's job, not this loop's. `urlopen` raises
-        # HTTPError on every 4xx/5xx, so an app that started perfectly well and
-        # answers 500 (a Jinja typo, a TemplateNotFound, a missing templates/ in
-        # the image) would otherwise never satisfy the probe. The container is
-        # alive, so the exited-container bail-out below would not fire either: the
-        # run would burn all 30 iterations and die right here, without ever
-        # reaching the smoke test that would have printed `FAIL / -> HTTP 500` on
-        # its first request. HTTPError is therefore caught and counts as ready;
-        # every other exception (connection refused, timeout) still means not-ready.
+        # Ready means "the server produced an HTTP response of any kind": HTTPError
+        # (4xx/5xx) counts as ready, so a 500 reaches ci/smoke.py, which reports it.
+        # Connection refused or a timeout still mean not-ready.
         #
-        # The program lives in a shell variable because it needs real newlines:
-        # try/except cannot be folded onto one `;`-joined line, and `python -c`
-        # rejects a leading-space `import`, so every line sits at this block's base
-        # indentation — YAML strips exactly that much, leaving the shell string
-        # unindented. It is single-quoted so the shell expands nothing inside it,
-        # which is why the python code below uses double quotes.
+        # The program needs real newlines for try/except, so it lives in a
+        # single-quoted shell variable at the block's base indentation (YAML strips
+        # it, and `python -c` rejects indented code); the python uses double quotes.
         PROBE='
         import urllib.error
         import urllib.request
@@ -252,18 +211,10 @@ jobs:
         docker rm -f "$NAME" || true
 
     - name: Remove the built images from the runner
-      # The runner's docker daemon is persistent, so the images built here would
-      # otherwise pile up and grow the disk forever. This step removes ONLY the
-      # tags this run created — no `docker system prune`, which would also wipe
-      # images of other repos sharing the same daemon.
-      # It does NOT reclaim everything: `docker rmi <tag>` never touches the
-      # BuildKit cache (that lives in a separate builder store and is only freed
-      # by `docker builder prune`), and `--pull` above leaves the previous base
-      # image untagged as a dangling image whenever upstream updates python:3.11-slim.
-      # The BuildKit cache is the bigger of the two — `docker build` is BuildKit by
-      # default since Engine 23.0, and on a daemon shared by the whole fleet that
-      # store is the main source of disk growth.
-      # Both need a separate periodic cleanup on the runner host.
+      # The runner's docker daemon is persistent and shared with other repos, so
+      # this removes ONLY the tags this run created (no `docker system prune`).
+      # The BuildKit cache (the main source of disk growth) and dangling base images
+      # left by `--pull` need a separate periodic cleanup on the runner host.
       # `always()` so the cleanup runs even when the smoke or the push above fails.
       if: always()
       env:
