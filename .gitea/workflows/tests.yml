@@ -65,24 +65,18 @@ jobs:
         docker build --pull . --file Dockerfile --tag "$LOCAL_TAG"
 
     - name: Smoke-test the built image
-      # There are no unit tests in this repo, so this is the whole PR gate. It runs
-      # the exact same ci/smoke.py against the exact same kind of container as
-      # image-check-publish.yml — only on the local tag, with no login and no push.
-      # Keeping the script in one file is the point: two copies of it would drift,
-      # and the PR gate would stop matching the gate that guards prod.
+      # The whole PR gate: the same ci/smoke.py as image-check-publish.yml, on the
+      # local tag, with no login and no push.
       #
-      # The container starts with the image's OWN command — no `--entrypoint`,
-      # which would also drop the image's CMD and leave "does the container even
-      # start" untested (this image has no ENTRYPOINT, only CMD).
+      # The container runs the image's own CMD (no `--entrypoint`, which would drop
+      # CMD), so the check proves the container actually starts.
       #
-      # Nothing is published to the host: the checks run from inside via
-      # `docker exec`, so parallel runs on this shared daemon cannot collide on a
-      # host port. The container name carries the run id for the same reason.
+      # Nothing is published to the host: checks run via `docker exec`, so parallel
+      # runs on the shared daemon cannot collide on a port. The container name
+      # carries the run id for the same reason.
       #
-      # Step-level `timeout-minutes`, the one act_runner is known to enforce (the
-      # job-level one is only the outer bound). 5 minutes comfortably covers
-      # `docker run`, the readiness loop's ~2-minute worst case and the smoke script
-      # itself.
+      # 5 minutes covers `docker run`, the readiness loop's ~2-minute worst case and
+      # the smoke script.
       timeout-minutes: 5
       env:
         SMOKE_TAG: ${{ steps.tags.outputs.local }}
@@ -95,25 +89,14 @@ jobs:
         # Port 8000 is what app.py falls back to when PORT is unset, and nothing
         # here sets it.
         #
-        # Ready means "the server produced an HTTP response of ANY kind" — judging
-        # that response is ci/smoke.py's job, not this loop's. `urlopen` raises
-        # HTTPError on every 4xx/5xx, so an app that started perfectly well and
-        # answers 500 (a Jinja typo, a TemplateNotFound, a missing templates/ in
-        # the image) would otherwise never satisfy the probe. The container is
-        # alive, so the exited-container bail-out below would not fire either: the
-        # run would burn all 30 iterations and die right here, without ever
-        # reaching the smoke test that would have printed `FAIL / -> HTTP 500` on
-        # its first request. HTTPError is therefore caught and counts as ready;
-        # every other exception (connection refused, timeout) still means not-ready.
-        # Identical to the probe in image-check-publish.yml on purpose — the PR
-        # gate and the publishing gate must not drift.
+        # Ready means "the server produced an HTTP response of any kind": HTTPError
+        # (4xx/5xx) counts as ready, so a 500 reaches ci/smoke.py, which reports it.
+        # Connection refused or a timeout still mean not-ready. Keep identical to the
+        # probe in image-check-publish.yml.
         #
-        # The program lives in a shell variable because it needs real newlines:
-        # try/except cannot be folded onto one `;`-joined line, and `python -c`
-        # rejects a leading-space `import`, so every line sits at this block's base
-        # indentation — YAML strips exactly that much, leaving the shell string
-        # unindented. It is single-quoted so the shell expands nothing inside it,
-        # which is why the python code below uses double quotes.
+        # The program needs real newlines for try/except, so it lives in a
+        # single-quoted shell variable at the block's base indentation (YAML strips
+        # it, and `python -c` rejects indented code); the python uses double quotes.
         PROBE='
         import urllib.error
         import urllib.request
@@ -167,13 +150,8 @@ jobs:
       # The runner's docker daemon is persistent and shared with other repos, so
       # every PR check would otherwise leave an image behind forever. Removes ONLY
       # the tag this run created — no `docker system prune`.
-      # It does NOT reclaim everything: `docker rmi <tag>` never frees the BuildKit
-      # cache (a separate builder store, reclaimed only by `docker builder prune`),
-      # and `--pull` leaves the previous base image dangling whenever upstream
-      # updates python:3.11-slim. This gate runs on every push to a PR, so it
-      # produces MORE of that garbage on the shared runner daemon than the
-      # publishing workflow does — see the full note in image-check-publish.yml.
-      # Both need a separate periodic cleanup on the runner host.
+      # The BuildKit cache and dangling base images left by `--pull` need a separate
+      # periodic cleanup on the runner host.
       # `always()` so a failed smoke still cleans up after itself.
       if: always()
       env:

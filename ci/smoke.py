@@ -7,18 +7,10 @@ against any locally started container of this image.
 It is pure stdlib on purpose: the image installs only flask and loguru, so anything
 else imported here would fail at the gate instead of at the thing being gated.
 
-Two properties matter here and are easy to lose:
-
-* It talks HTTP to the server the image's own CMD started, instead of driving the
-  app in-process through Flask's test client. Only the former proves the container
-  actually comes up — a broken `__main__` block, a bad WORKDIR or a typo in CMD all
-  pass an in-process check while production serves nothing.
-* Failures leave through SystemExit, never `assert`. Asserts vanish under
-  PYTHONOPTIMIZE=1 (a common slim-image tweak), which would silently turn this gate
-  permanently green.
-
-Every target is checked before reporting, so one run shows the full extent of the
-breakage rather than only the first broken thing.
+It talks HTTP to the server the image's own CMD started (not Flask's test client),
+so it proves the container actually comes up. Failures leave through SystemExit,
+never `assert`, which vanishes under PYTHONOPTIMIZE=1. Every target is checked
+before reporting.
 """
 
 import urllib.error
@@ -29,33 +21,13 @@ import urllib.request
 BASE_URL = "http://127.0.0.1:8000"
 TIMEOUT = 5
 
-# app.py has exactly one route — `/`, rendering templates/index.html on top of
-# templates/base.html. Status alone is not enough: a 200 with an empty or
-# half-rendered template (a missing block, a template not COPYed into the image)
-# would pass.
-#
-# Hence THREE markers — one from the layout, two from the page body, because
-# either side alone proves only half of the render:
-#   * `class="footer-content"` exists only in base.html — it proves the LAYOUT
-#     rendered.
-#   * `id="hero"` and `id="products"` exist only inside index.html's
-#     `{% block content %}` — they prove the PAGE BODY rendered.
-# A layout-only marker is the trap this avoids: an empty or half-rendered
-# `{% block content %}` still answers 200 and still carries base.html's footer,
-# so the gate would stay green while a page consisting of nothing but a footer
-# shipped to production.
-#
-# The two body markers are `id`s rather than classes because an id holds exactly
-# one value and cannot grow a second token the way a class list can: turning
-# `<span class="wordmark">` into `<span class="wordmark hero-word">` is an
-# everyday CSS edit that would break a `class="wordmark"` marker on a page that
-# rendered perfectly. Both ids are also load-bearing, so renaming one visibly
-# breaks the page and would not pass unnoticed: `#products` is the target of
-# index.html's in-page nav, and `#hero` is styled through the `#hero` and
-# `#hero::before` selectors in static/css/style.css.
-#
-# All of them are attributes rather than prose: every visible string on this
-# page is marketing copy that gets reworded, the structure does not.
+# app.py has one route, `/` (templates/index.html on top of templates/base.html).
+# Status alone is not enough, so the page must carry markers from both halves of
+# the render: `class="footer-content"` exists only in base.html (the layout),
+# `id="hero"` and `id="products"` only inside index.html's `{% block content %}`
+# (the page body). The body markers are ids, not classes, because a class list
+# grows tokens in everyday CSS edits; both ids are referenced by the page's nav
+# and style.css. Attributes, not prose: the visible copy gets reworded.
 HTML_ROUTES = [
     ("/", ['class="footer-content"', 'id="hero"', 'id="products"']),
 ]
